@@ -15,6 +15,7 @@ public class Network {
         kryo.register(AddCharacter.class);
         kryo.register(RemoveCharacter.class);
         kryo.register(MoveCharacter.class);
+        kryo.register(Character.class);
     }
     
     public static class Login {

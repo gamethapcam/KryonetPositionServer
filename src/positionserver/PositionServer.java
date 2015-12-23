@@ -106,7 +106,6 @@ public class PositionServer {
                 }
                 
                 if (object instanceof MoveCharacter) {
-                	
                 	if (character == null) {
                 		return;
                 	}
@@ -114,7 +113,7 @@ public class PositionServer {
                 	MoveCharacter msg = (MoveCharacter) object;
                 	
                 	// ignore invalid move
-                	if (Math.abs(msg.x) != 1 || Math.abs(msg.y) != 1) {
+                	if ((Math.abs(msg.x) != 1) && (Math.abs(msg.y) != 1)) {
                 		return;
                 	}
                 	
@@ -125,7 +124,7 @@ public class PositionServer {
                 		c.close();
                 		return;
                 	}
-                	
+
                 	UpdateCharacter updateCharacter = new UpdateCharacter();
                 	updateCharacter.id = character.id;
                 	updateCharacter.x = character.x;
@@ -171,7 +170,6 @@ public class PositionServer {
     
     protected void loggedIn(CharacterConnection connection, Character character) {
     	connection.character = character;
-    	
     	for (Character other : loggedIn) {
     		AddCharacter addCharacter = new AddCharacter();
     		addCharacter.character = other;
@@ -182,7 +180,7 @@ public class PositionServer {
     	
     	AddCharacter addCharacter = new AddCharacter();
     	addCharacter.character = character;
-    	server.sendToAllTCP(character);
+    	server.sendToAllTCP(addCharacter);
     }
 
     protected boolean saveCharacter(Character character) {
@@ -263,7 +261,7 @@ public class PositionServer {
     }
 
     public static void main(String[] args) {
-        Log.set(Log.LEVEL_DEBUG);
+        Log.set(Log.LEVEL_NONE);
         new PositionServer();
     }
 }

@@ -1,5 +1,11 @@
 package positionserver;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 
@@ -8,10 +14,13 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 
+import positionserver.Network.AddCharacter;
 import positionserver.Network.Login;
+import positionserver.Network.MoveCharacter;
 import positionserver.Network.Register;
 import positionserver.Network.RegistrationRequired;
 import positionserver.Network.RemoveCharacter;
+import positionserver.Network.UpdateCharacter;
 
 public class PositionServer {
     
@@ -60,12 +69,70 @@ public class PositionServer {
                         return;
                     }
                     
-                    loggedIn(connection, character);
+                    loggedIn(c, character);
                     return;
                 }
                 
                 if (object instanceof Register) {
+                    if (character != null) {
+                    	return;
+                    }
                     
+                    Register register = (Register) object;
+                    
+                    if (!isValid(register.name)) {
+                    	c.close();
+                    	return;
+                    }
+                    
+                    if (!isValid(register.otherStuff)) {
+                    	c.close();
+                    	return;
+                    }
+                    
+                    character = new Character();
+                    character.name = register.name;
+                    character.otherStuff = register.otherStuff;
+                    character.x = 0;
+                    character.y = 0;
+                    
+                    if (!saveCharacter(character)) {
+                    	c.close();
+                    	return;
+                    }
+                    
+                    loggedIn(c, character);
+                    return;
+                }
+                
+                if (object instanceof MoveCharacter) {
+                	
+                	if (character == null) {
+                		return;
+                	}
+                	
+                	MoveCharacter msg = (MoveCharacter) object;
+                	
+                	// ignore invalid move
+                	if (Math.abs(msg.x) != 1 || Math.abs(msg.y) != 1) {
+                		return;
+                	}
+                	
+                	character.x += msg.x;
+                	character.y += msg.y;
+                	
+                	if (!saveCharacter(character)) {
+                		c.close();
+                		return;
+                	}
+                	
+                	UpdateCharacter updateCharacter = new UpdateCharacter();
+                	updateCharacter.id = character.id;
+                	updateCharacter.x = character.x;
+                	updateCharacter.y = character.y;
+                	
+                	server.sendToAllTCP(updateCharacter);
+                	return;
                 }
             }
             
@@ -102,14 +169,97 @@ public class PositionServer {
         }
     }
     
-    protected void loggedIn(Connection connection, Character character) {
-        // TODO Auto-generated method stub
-        
+    protected void loggedIn(CharacterConnection connection, Character character) {
+    	connection.character = character;
+    	
+    	for (Character other : loggedIn) {
+    		AddCharacter addCharacter = new AddCharacter();
+    		addCharacter.character = other;
+    		connection.sendTCP(addCharacter);
+    	}
+    	
+    	loggedIn.add(character);
+    	
+    	AddCharacter addCharacter = new AddCharacter();
+    	addCharacter.character = character;
+    	server.sendToAllTCP(character);
+    }
+
+    protected boolean saveCharacter(Character character) {
+    	File file = new File("characters", character.name.toLowerCase());
+    	file.getParentFile().mkdirs();
+    	
+    	if (character.id == 0) {
+    		String[] children = file.getParentFile().list();
+    		if (children == null) {
+    			return false;
+    		}
+    		
+    		character.id = children.length + 1;
+    	}
+    	
+    	DataOutputStream output = null;
+    	
+    	try {
+			output = new DataOutputStream(new FileOutputStream(file));
+			output.writeInt(character.id);
+			output.writeUTF(character.otherStuff);
+			output.writeInt(character.x);
+			output.writeInt(character.y);
+			
+			return true;
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			return false;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false;
+		}
+    	finally {
+    		try {
+				output.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+    	}
     }
 
     protected Character loadCharacter(String name) {
-        // TODO Auto-generated method stub
-        return null;
+    	File file = new File("characters", name.toLowerCase());
+    	if (!file.exists()) {
+    		return null;
+    	}
+    	
+    	DataInputStream input = null;
+    	
+    	try {
+			input = new DataInputStream(new FileInputStream(file));
+			Character character = new Character();
+			character.id = input.readInt();
+			character.name = name;
+			character.otherStuff = input.readUTF();
+			character.x = input.readInt();
+			character.y = input.readInt();
+			input.close();
+			return character;
+			
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			return null;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return null;
+		}
+    	finally {
+    		if (input != null) {
+    			try {
+					input.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+    		}
+    	}
+    	
     }
 
     public static void main(String[] args) {
